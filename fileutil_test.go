@@ -176,3 +176,24 @@ func TestZeroToEnd(t *testing.T) {
 		}
 	}
 }
+
+func TestAtomicWriteFile(t *testing.T) {
+	fdir := filepath.Join(os.TempDir(), fmt.Sprint(time.Now().UnixNano()+rand.Int63n(1000)))
+	os.RemoveAll(fdir)
+	if err := os.Mkdir(fdir, 0700); err != nil {
+		t.Skip(err)
+	}
+	defer os.RemoveAll(fdir)
+	filename := filepath.Join(fdir, "atomic")
+	data := []byte("abc123qweasdzxc")
+	if err := AtomicWriteFile(filename, ".tmp", data, 0600); err != nil {
+		t.Fatal("AtomicWriteFile", filename, ":", err)
+	}
+	dx, err := ioutil.ReadFile(filename)
+	if err != nil {
+		t.Fatal("ReadFile", filename, ":", err)
+	}
+	if !reflect.DeepEqual(dx, data) {
+		t.Fatal("got unexpect content:", dx)
+	}
+}

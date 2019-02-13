@@ -115,3 +115,49 @@ func ZeroToEnd(f *os.File) error {
 	_, err = f.Seek(off, io.SeekStart)
 	return err
 }
+
+// AtomicWriteFile **atomically** writes data to a file named by filename.
+// If an error occurs, the target file is guaranteed to be either fully written,
+// or not written at all.
+// If the file does not exist, WriteFile creates it with permissions perm;
+// otherwise WriteFile truncates it before writing.
+func AtomicWriteFile(filename, tmpext string, data []byte, perm os.FileMode) (err error) {
+	d, file := filepath.Split(filename)
+	f, err := ioutil.TempFile(d, file+"*"+tmpext)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			os.Remove(f.Name()) // ignore
+		}
+	}()
+	// write & fsync
+	n, err := f.Write(data)
+	if err == nil && n < len(data) {
+		err = io.ErrShortWrite
+	}
+	if ex := f.Sync(); err == nil {
+		err = ex
+	}
+	if ex := f.Close(); err == nil {
+		err = ex
+	}
+	if err != nil {
+		return err
+	}
+	// chmod
+	fi, err := os.Stat(filename)
+	if err == nil {
+		if err = os.Chmod(f.Name(), fi.Mode()); err != nil {
+			return err
+		}
+	} else if os.IsNotExist(err) {
+		if err = os.Chmod(f.Name(), perm); err != nil {
+			return err
+		}
+	} else {
+		return err
+	}
+	return os.Rename(f.Name(), filename)
+}
