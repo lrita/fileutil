@@ -38,3 +38,14 @@ func Fsync(f *os.File) error {
 func Fdatasync(f *os.File) error {
 	return Fsync(f)
 }
+
+// Frangesync invokes sync_file_range syscall for the given offset and nbytes.
+func Frangesync(f *os.File, off, n int64, strict bool) error {
+	return syscall.ENOSYS
+}
+
+// IsSyncFileRangeSupported returns true when the filesystem which the given
+// file is located in is support sync_file_range syscall.
+func IsSyncFileRangeSupported(f *os.File) bool {
+	return false
+}
