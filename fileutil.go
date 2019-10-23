@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"syscall"
 )
 
 const (
@@ -85,6 +86,38 @@ func CreateDirAll(dir string) error {
 		}
 	}
 	return err
+}
+
+func isErrInvalid(err error) bool {
+	if err == os.ErrInvalid {
+		return true
+	}
+	// Go < 1.8
+	if syserr, ok := err.(*os.SyscallError); ok && syserr.Err == syscall.EINVAL {
+		return true
+	}
+	// Go >= 1.8 returns *os.PathError instead
+	if patherr, ok := err.(*os.PathError); ok && patherr.Err == syscall.EINVAL {
+		return true
+	}
+	return false
+}
+
+// SyncDir call fsync() on a directory.
+// Calling fsync() does not necessarily ensure that the entry in
+// the directory containing the file has also reached disk. For
+// that an explicit fsync() on a file descriptor for the directory
+// is also needed.
+func SyncDir(dir string) error {
+	f, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if err := f.Sync(); err != nil && !isErrInvalid(err) {
+		return err
+	}
+	return nil
 }
 
 // Exist returns true if a file or directory exists.
@@ -159,5 +192,8 @@ func AtomicWriteFile(filename, tmpext string, data []byte, perm os.FileMode) (er
 	} else {
 		return err
 	}
-	return os.Rename(f.Name(), filename)
+	if err = os.Rename(f.Name(), filename); err != nil {
+		return err
+	}
+	return SyncDir(d)
 }
